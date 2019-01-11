@@ -48,8 +48,8 @@ model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accur
 
 #fit model to data
 history = model.fit(X_train, Y_train, batch_size=32, epochs=5, verbose=1)
-with open('file.json', 'w') as f:
-    json.dump(hist.history, f)
+with open('histFile.json', 'w') as f:
+    json.dump(history.history, f)
 
 #evaluate model
 score = model.evaluate(X_test, Y_test, verbose=0)
