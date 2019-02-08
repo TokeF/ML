@@ -2,35 +2,38 @@ import pandas as pd
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-import generate_random_color as randc
+import utilities.generate_random_color as randc
 
 def plotDat(timestamp : np.ndarray, dbdt : np.ndarray, lbl : np.ndarray):
 
     #find index of label change from 0 to 1 or 1 to 0. Ved at finde indeks for en inbyrdes non-zero differens
-    zero_crossings = np.where(np.diff(np.transpose(lbl).tolist()))[1]
-
+    zero_crossings = np.where(np.diff(np.transpose(lbl).tolist()))[0]
+    if len(zero_crossings) == 0: print('no label change'), exit() #plot does not support no label change
     #genereate colors for plotting lines, so each gate is same color
     fig, ax = plt.subplots()
     ax.set_prop_cycle('color', plt.cm.Spectral(np.linspace(0,1,dbdt.shape[1])))
     
-    for i,idx in enumerate(zero_crossings):
+    #PLOT: the zerocross index, is the index before the change
+    for i in range(len(zero_crossings) + 1): #always one for segment than zero changes
         #indice for first segment
         if i == 0:
             startIdx = 0
-            endIdx = idx + 1
-            idx -= 1
+            endIdx = zero_crossings[i] + 1 + 1
+            coupled = lbl[zero_crossings[i]]
         #indice for middle segment
-        if 0 < i < len(zero_crossings) - 1:
-            startIdx = idx + 1
-            endIdx = zero_crossings[i + 1] + 1
+        if 0 < i < len(zero_crossings):
+            startIdx = zero_crossings[i - 1] + 1
+            endIdx = zero_crossings[i] + 1 + 1
+            coupled = lbl[zero_crossings[i]]
         #indice for last segment
-        if i == len(zero_crossings) - 1:
-            startIdx = idx + 1
+        if i == len(zero_crossings):
+            startIdx = zero_crossings[i - 1] + 1
             endIdx = None
+            coupled = not lbl[zero_crossings[i - 1]]
         #plot in colour or black if inuse or not
         l = 0.5
-        m = 6
-        if lbl[idx + 1] == 1:
+        m = 8
+        if coupled:
             plt.plot(timestamp[startIdx : endIdx], dbdt[startIdx : endIdx, :],'.-', linewidth=l, markersize=m)
         else:
             plt.plot(timestamp[startIdx : endIdx], dbdt[startIdx : endIdx, :],'.-', color = 'black', linewidth=l, markersize=m)

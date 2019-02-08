@@ -1,29 +1,26 @@
 import pandas as pd  
 import numpy as np  
 import matplotlib.pyplot as plt
-import PC_anal
-import data_visualize as dvis
+import utilities.PC_anal
+import utilities.data_visualize as dvis
 import sys
 sys.path.insert(0, '../utilities')
 
-#load data
-from data_reader import load_data2
-fname = "../data/20171101_RAW_export.xyz"
-_ , dbdt, lbl, timestamp = load_data2(fname, 8, 20, 14)
+def mvg_avg(gate : pd.DataFrame, wsize : int) :
+    shift = - int(np.floor(wsize/2))
+    window = gate.DBDT_Ch2GT8.shift(shift).rolling(wsize).mean()
+    gate = pd.concat([window, gate.DBDT_Ch2GT8], axis =1)
+    print(gate)
+    return gate.values
 
-#compute ratio between neighbour gates
-#allocate space for ratio vbectors/matrix
-r = np.zeros((dbdt.shape[0], dbdt.shape[1] - 1))
-for i in range(dbdt.shape[1] - 1):
-    r[:, i] = dbdt[:,i+1] / dbdt[:,i]
 
-dvis.plotDat(timestamp , r, lbl)
-plt.xlim([timestamp[0], timestamp[700]])
-plt.yscale('log')
-lbl = lbl[:,0]
-PC_anal.PCA_custom(r, lbl, 'ratio')
-plt.show()
-input()
+def row_ratio(timestamp : np.ndarray, dbdt : np.ndarray) -> np.ndarray:
+	#compute ratio between neighbour gates
+	#allocate space for ratio vbectors/matrix
+	ratio = np.zeros((dbdt.shape[0], dbdt.shape[1] - 1))
+	for i in range(dbdt.shape[1] - 1):
+		ratio[:, i] = dbdt[:,i+1] / dbdt[:,i]
+	return ratio
 
 #Compute difference between rows, UNUSED!
 def row_diff(dbdt : np.ndarray):

@@ -4,54 +4,73 @@ import matplotlib
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.datasets import make_classification
-
-#load data
 import sys
 sys.path.insert(0, '../utilities')
-from data_reader import load_data
-fname = "../data/20171101_RAW_export.xyz"
-df = load_data(fname)
-dbdt = df.loc[:,'DBDT_Ch2GT2':'DBDT_Ch2GT25'].values
-lbl = df.loc[:,'DBDT_INUSE_Ch2GT14'].values
+from utilities.data_reader import load_data2
+import utilities.data_visualize
+import utilities.difference
 
-# ## DELETE this it uis for wuick attempt at using ratio
-# dbdt2 = dbdt.values
-# r = np.zeros((dbdt2.shape[0], dbdt2.shape[1] - 1))
-# for i in range(dbdt2.shape[1] - 1):
-#     r[:, i] = dbdt2[:,i+1] / dbdt2[:,i]
-# ## DELETE
-# X = np.concatenate((dbdt, r), axis = 1)
-X = dbdt
-X_train, X_test, lbl_train, lbl_test = train_test_split(X, lbl, test_size = 0.20)
+#load data
+fname = "../data/20171101_RAW_export.xyz"
+_ , dbdt, lbl, timestamp = load_data2(fname, 11, 22 )
+
+# fname = "../data/stendalmark_20181120_RAW_export.xyz"
+# _ , dbdt, lbl, timestamp = load_data2(fname, 8, 22)
+# X_train = dbdt
+# X_test = dbdt2
+# lbl_train = lbl[:,0]
+# lbl_test = lbl2
+
+ratio = difference.row_ratio(timestamp, dbdt)
+X = range(dbdt.shape[0])
+X_train_idx, X_test_idx, lbl_train, lbl_test = train_test_split(X, lbl, test_size = 0.30)
+# X_test_idx = X[0:int(np.ceil(len(X)/2))]
+# lbl_test = lbl[X[0:int(np.ceil(len(X)/2))]]
+# X_train_idx = X[int(np.ceil(len(X)/2)) + 1 : ]
+# lbl_train = lbl[X[int(np.ceil(len(X)/2)) + 1 : ]]
+X_train = dbdt[X_train_idx,:]
+X_test = dbdt[X_test_idx,:]
 
 # Feature Scaling
 from sklearn.preprocessing import StandardScaler
 sc = StandardScaler()  
 X_train = sc.fit_transform(X_train)
-X_test = sc.transform(X_test)
+X_test = sc.fit_transform(X_test)
 
-# #apply random undersampling
-# from imblearn.under_sampling import RandomUnderSampler
-# from imblearn.over_sampling import RandomOverSampler
-# rus = RandomOverSampler(return_indices=True)
-# X_train, lbl_train, id_rus = rus.fit_sample(X_train, lbl_train)
+# apply random undersampling
+from imblearn.under_sampling import RandomUnderSampler
+from imblearn.over_sampling import RandomOverSampler
+rus = RandomOverSampler(return_indices=True)
+X_train, lbl_train, id_rus = rus.fit_sample(X_train, lbl_train)
+# X_test, lbl_test, id_rus_test = rus.fit_sample(X_test, lbl_test)
 
 # Make classification
-classifier = RandomForestClassifier(n_estimators=100)  
+classifier = RandomForestClassifier(n_estimators=1000)  
 classifier.fit(X_train, lbl_train)  
 lbl_scor = classifier.predict_proba(X_test)
+
+#find misclassified samples
 lbl_pred = lbl_scor[:][:,1].round()
 misclassified = np.where(lbl_test != lbl_pred)
-plt.hist(lbl_scor[misclassified[0],:][:][:,1])
+corclassified = np.where(lbl_test == lbl_pred)
+# plt.hist(lbl_scor[misclassified[0],:][:][:,1])
 b = lbl_scor[:][:,1]
 c = b[b >= 0.85]
 b = b[b < 0.85]
 print(b.shape)
 print(c.shape)
 
-print(misclassified)
-exit()
+#plot data and red bars where data is misclassified
+data_visualize.plotDat(timestamp, dbdt, lbl )
+plt.yscale('log')
+for xc in misclassified[0]:
+    ogmark = timestamp[X_test_idx[xc]]
+    plt.axvline(x=ogmark, color = 'red')
+#plot correctly classified
+for xc in corclassified[0]:
+    ogmark = timestamp[X_test_idx[xc]]
+    plt.axvline(x=ogmark, color = 'blue')
+
 #metrics
 from sklearn.metrics import classification_report, confusion_matrix
 print(confusion_matrix(lbl_test,lbl_pred))  
@@ -61,6 +80,8 @@ print(lbl_pred)
 plt.show()
 # scores = cross_val_score(classifier, X, lbl, cv=5)
 # print(scores.mean())
+
+
 
 # ## Isolation forest
 # uncoupled = dbdt.loc[df['DBDT_INUSE_Ch2GT14'] == 1].values
