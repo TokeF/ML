@@ -9,75 +9,87 @@ sys.path.insert(0, '../utilities')
 from utilities.data_reader import load_data2
 import utilities.data_visualize
 import utilities.difference
+def chunks(l, n):
+    """Yield successive n-sized chunks from l."""
+    for i in range(0, len(l), n):
+        yield l[i:i + n]
 
-#load data
-fname = "../data/20171101_RAW_export.xyz"
-_ , dbdt, lbl, timestamp = load_data2(fname, 11, 22 )
+def rnd_forest(timestamp : np.ndarray, dbdt : np.ndarray, lbl : np.ndarray, tSize : float, n_trees : int, removelow : bool = False):
+    X = list(chunks(range(len(lbl)), 5))
+    lbl2 = list(chunks(range(len(lbl)), 5))
+    # X = range(dbdt.shape[0])
+    X_train_idx, X_test_idx, lbl_train_idx, lbl_test_idx = train_test_split(X, lbl2, test_size = tSize)
+    # X_test_idx = X[0:int(np.ceil(len(X)/2))]
+    # lbl_test = lbl[X[0:int(np.ceil(len(X)/2))]]
+    # X_train_idx = X[int(np.ceil(len(X)/2)) + 1 : ]
+    # lbl_train = lbl[X[int(np.ceil(len(X)/2)) + 1 : ]]
 
-# fname = "../data/stendalmark_20181120_RAW_export.xyz"
-# _ , dbdt, lbl, timestamp = load_data2(fname, 8, 22)
-# X_train = dbdt
-# X_test = dbdt2
-# lbl_train = lbl[:,0]
-# lbl_test = lbl2
+    #For segmenting the data
+    X_train_idx = [item for sublist in X_train_idx for item in sublist] #list comprehension :O
+    X_test_idx = [item for sublist in X_test_idx for item in sublist]
+    lbl_train_idx = [item for sublist in lbl_train_idx for item in sublist]
+    lbl_test_idx = [item for sublist in lbl_test_idx for item in sublist]
+    lbl_train = lbl[lbl_train_idx]
+    lbl_test = lbl[lbl_test_idx]
 
-ratio = difference.row_ratio(timestamp, dbdt)
-X = range(dbdt.shape[0])
-X_train_idx, X_test_idx, lbl_train, lbl_test = train_test_split(X, lbl, test_size = 0.30)
-# X_test_idx = X[0:int(np.ceil(len(X)/2))]
-# lbl_test = lbl[X[0:int(np.ceil(len(X)/2))]]
-# X_train_idx = X[int(np.ceil(len(X)/2)) + 1 : ]
-# lbl_train = lbl[X[int(np.ceil(len(X)/2)) + 1 : ]]
-X_train = dbdt[X_train_idx,:]
-X_test = dbdt[X_test_idx,:]
+    X_train = dbdt[X_train_idx,:]
+    X_test = dbdt[X_test_idx,:]
 
-# Feature Scaling
-from sklearn.preprocessing import StandardScaler
-sc = StandardScaler()  
-X_train = sc.fit_transform(X_train)
-X_test = sc.fit_transform(X_test)
+    # Feature Scaling
+    from sklearn.preprocessing import StandardScaler
+    sc = StandardScaler()
+    X_train = sc.fit_transform(X_train)
+    X_test = sc.fit_transform(X_test)
 
-# apply random undersampling
-from imblearn.under_sampling import RandomUnderSampler
-from imblearn.over_sampling import RandomOverSampler
-rus = RandomOverSampler(return_indices=True)
-X_train, lbl_train, id_rus = rus.fit_sample(X_train, lbl_train)
-# X_test, lbl_test, id_rus_test = rus.fit_sample(X_test, lbl_test)
+    # apply random undersampling
+    from imblearn.under_sampling import RandomUnderSampler
+    from imblearn.over_sampling import RandomOverSampler
+    rus = RandomOverSampler(return_indices=True)
+    X_train, lbl_train, id_rus = rus.fit_sample(X_train, lbl_train)
+    # X_test, lbl_test, id_rus_test = rus.fit_sample(X_test, lbl_test)
 
-# Make classification
-classifier = RandomForestClassifier(n_estimators=1000)  
-classifier.fit(X_train, lbl_train)  
-lbl_scor = classifier.predict_proba(X_test)
+    # Make classification
+    classifier = RandomForestClassifier(n_estimators=n_trees)
+    classifier.fit(X_train, lbl_train)
+    lbl_scor = classifier.predict_proba(X_test)
 
-#find misclassified samples
-lbl_pred = lbl_scor[:][:,1].round()
-misclassified = np.where(lbl_test != lbl_pred)
-corclassified = np.where(lbl_test == lbl_pred)
-# plt.hist(lbl_scor[misclassified[0],:][:][:,1])
-b = lbl_scor[:][:,1]
-c = b[b >= 0.85]
-b = b[b < 0.85]
-print(b.shape)
-print(c.shape)
+    if (removelow):
+        # remove low precision
+        lbl_scorA = np.asarray(lbl_scor)
+        b = (lbl_scorA[:, 1] < 0.3) | (lbl_scorA[:, 1] > 0.7)
+        pred = lbl_scorA[b, 1].round()
+        test = lbl_test[b]
+        print(len(pred) / len(lbl_test))
+        #metrics
+        from sklearn.metrics import classification_report, confusion_matrix
+        print(confusion_matrix(test,pred))
+        print(classification_report(test,pred))
+        exit()
 
-#plot data and red bars where data is misclassified
-data_visualize.plotDat(timestamp, dbdt, lbl )
-plt.yscale('log')
-for xc in misclassified[0]:
-    ogmark = timestamp[X_test_idx[xc]]
-    plt.axvline(x=ogmark, color = 'red')
-#plot correctly classified
-for xc in corclassified[0]:
-    ogmark = timestamp[X_test_idx[xc]]
-    plt.axvline(x=ogmark, color = 'blue')
+    #find misclassified samples
+    lbl_pred = lbl_scor[:][:,1].round()
+    misclassified = np.where(lbl_test != lbl_pred)
+    corclassified = np.where(lbl_test == lbl_pred)
 
-#metrics
-from sklearn.metrics import classification_report, confusion_matrix
-print(confusion_matrix(lbl_test,lbl_pred))  
-print(classification_report(lbl_test,lbl_pred))
-print(lbl_test)
-print(lbl_pred)
-plt.show()
+    #plot data and red bars where data is misclassified
+    # data_visualize.plotDat(timestamp, dbdt, lbl )
+    plt.yscale('log')
+    for xc in misclassified[0]:
+        ogmark = timestamp[X_test_idx[xc]]
+        plt.axvline(x=ogmark, color = 'red')
+    #plot correctly classified
+    for xc in corclassified[0]:
+        ogmark = timestamp[X_test_idx[xc]]
+        plt.axvline(x=ogmark, color = 'blue')
+
+    #metrics
+    from sklearn.metrics import classification_report, confusion_matrix
+    print(confusion_matrix(lbl_test,lbl_pred))
+    print(classification_report(lbl_test,lbl_pred))
+    print("Test labels: " + str(lbl_test))
+    print("predicted labels: " + str(lbl_pred))
+    return lbl_scor
+
 # scores = cross_val_score(classifier, X, lbl, cv=5)
 # print(scores.mean())
 

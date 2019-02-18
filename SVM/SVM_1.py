@@ -19,7 +19,7 @@ def SVM_classify(X : np.array, lbl : np.array):
 
     #import and train SVC (classifier) 
     from sklearn.svm import SVC  
-    svclassifier = SVC(kernel='linear', gamma='auto')  
+    svclassifier = SVC(kernel='poly', degree=10, gamma='auto')
     svclassifier.fit(X_train_rus, lbl_train_rus)
     #predict labels for test data
     lbl_pred = svclassifier.predict(X_test)
